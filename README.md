@@ -7,7 +7,10 @@ how the curve changes.
 ## How it works
 
 - **Teacher** = the presenter who is also a moderator. The teacher opens Plot from the
-  **Apps Gallery**, types the formulas and clicks **Apply formulas**.
+  **Apps Gallery**, types or pastes the formulas into the box, one per line (lines may end
+  in LF, CR or CRLF), and clicks **Apply formulas**. Lines past the 10th, and lines longer
+  than 200 characters, are left out with a warning shown as the teacher types; the text in
+  the box is never deleted.
 - **Teaching mode:** every student sees exactly what the teacher sees — the selected
   formula, the teacher's edits as they type, and the plot. Students can't change anything.
 - **Student mode:** each student picks a formula, edits it, and clicks **Update plot** (or

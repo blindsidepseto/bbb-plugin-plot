@@ -1,5 +1,5 @@
 import {
-  sanitizeFormulas, latestStudentStates, studentView, presenterView, reselectAfterEdit, MAX_FORMULAS,
+  parseFormulaText, latestStudentStates, studentView, presenterView, reselectAfterEdit, MAX_FORMULAS,
 } from '../src/plot-plugin/state';
 import { SessionState, StudentState } from '../src/plot-plugin/types';
 
@@ -18,15 +18,30 @@ const session = (overrides: Partial<SessionState> = {}): SessionState => ({
 describe('Formula list', () => {
   // Behaviour 4
   it('Given the presenter enters 11 formulas, then only the first 10 are accepted', () => {
-    const eleven = Array.from({ length: 11 }, (_, i) => `x + ${i}`);
-    const result = sanitizeFormulas(eleven);
+    const eleven = Array.from({ length: 11 }, (_, i) => `x + ${i}`).join('\n');
+    const result = parseFormulaText(eleven);
     expect(MAX_FORMULAS).toBe(10);
-    expect(result).toHaveLength(10);
-    expect(result[9]).toBe('x + 9');
+    expect(result.formulas).toHaveLength(10);
+    expect(result.formulas[9]).toBe('x + 9');
+    expect(result.problems).toEqual(['Only the first 10 formulas are used; 1 extra line is ignored.']);
   });
 
   it('Given blank lines and surrounding spaces, then they are trimmed and blanks dropped', () => {
-    expect(sanitizeFormulas(['  sin(x) ', '', '   ', 'x'])).toEqual(['sin(x)', 'x']);
+    expect(parseFormulaText('  sin(x) \n\n   \nx').formulas).toEqual(['sin(x)', 'x']);
+  });
+});
+
+describe('Splitting the formula box into lines', () => {
+  it.each([
+    ['LF', 'a\nb'],
+    ['CR', 'a\rb'],
+    ['CRLF', 'a\r\nb'],
+  ])('Given lines separated by %s, then each line is one formula', (_label, text) => {
+    expect(parseFormulaText(text)).toEqual({ formulas: ['a', 'b'], problems: [] });
+  });
+
+  it('Given mixed separators and blank lines, then blanks are dropped', () => {
+    expect(parseFormulaText(' a \r\n\r\nb\rc\n\n').formulas).toEqual(['a', 'b', 'c']);
   });
 });
 
