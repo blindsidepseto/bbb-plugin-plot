@@ -19,11 +19,25 @@ export function isTeacher(user: { presenter: boolean; role: string }): boolean {
   return user.presenter && isModerator(user);
 }
 
-export function sanitizeFormulas(formulas: string[]): string[] {
-  return formulas
-    .map((f) => f.trim())
-    .filter((f) => f.length > 0)
-    .slice(0, MAX_FORMULAS);
+// The teacher types one formula per line; lines may end in LF, CR or CRLF.
+// Returns the formulas to publish and warnings about lines that are left out.
+export function parseFormulaText(text: string): { formulas: string[]; problems: string[] } {
+  const usable: string[] = [];
+  const problems: string[] = [];
+  text.split(/\r\n|\r|\n/).forEach((raw, i) => {
+    const line = raw.trim();
+    if (!line) return;
+    if (line.length > MAX_FORMULA_LENGTH) {
+      problems.push(`Line ${i + 1} is longer than ${MAX_FORMULA_LENGTH} characters and is skipped.`);
+      return;
+    }
+    usable.push(line);
+  });
+  const extra = usable.length - MAX_FORMULAS;
+  if (extra > 0) {
+    problems.push(`Only the first ${MAX_FORMULAS} formulas are used; ${extra} extra line${extra === 1 ? ' is' : 's are'} ignored.`);
+  }
+  return { formulas: usable.slice(0, MAX_FORMULAS), problems };
 }
 
 interface StudentEntry {

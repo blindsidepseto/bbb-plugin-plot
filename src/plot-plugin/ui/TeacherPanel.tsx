@@ -8,7 +8,8 @@ import {
   SessionState, PlotMode, PUSH_DEBOUNCE_MS,
 } from '../types';
 import {
-  MAX_FORMULAS, sanitizeFormulas, latestStudentStates, presenterView, reselectAfterEdit,
+  MAX_FORMULAS, parseFormulaText, latestStudentStates,
+  presenterView, reselectAfterEdit,
 } from '../state';
 import { FormulaList, FormulaBox } from './FormulaControls';
 import PlotView from './PlotView';
@@ -23,9 +24,11 @@ interface TeacherPanelProps {
 function TeacherPanel({
   pluginApi, session, pushSession, clearSession,
 }: TeacherPanelProps): React.ReactElement {
-  const [draftFormulas, setDraftFormulas] = useState<string[]>(
-    session.formulas.length ? session.formulas : [''],
-  );
+  const [draftText, setDraftText] = useState(session.formulas.join('\n'));
+  // Warnings are worked out from the text as it is typed, before anything is applied.
+  const parsed = parseFormulaText(draftText);
+  // Starts open when there are no formulas yet; afterwards only the teacher toggles it.
+  const [editorOpen, setEditorOpen] = useState(session.formulas.length === 0);
   const [draftExpr, setDraftExpr] = useState(session.teacherView.expr);
   const [watched, setWatched] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -77,13 +80,12 @@ function TeacherPanel({
   };
 
   const applyFormulas = () => {
-    const formulas = sanitizeFormulas(draftFormulas);
+    const { formulas } = parsed;
     const teacherView = reselectAfterEdit(
       sent.current.formulas,
       formulas,
       sent.current.teacherView,
     );
-    setDraftFormulas(formulas.length ? formulas : ['']);
     setDraftExpr(teacherView.expr);
     publish({ formulas, teacherView });
   };
@@ -118,37 +120,23 @@ function TeacherPanel({
         <button type="button" onClick={close} style={{ marginLeft: 'auto' }}>Close Plot</button>
       </div>
 
-      <details open={local.formulas.length === 0}>
+      <details open={editorOpen} onToggle={(e) => setEditorOpen(e.currentTarget.open)}>
         <summary>{`Formulas (${local.formulas.length}/${MAX_FORMULAS})`}</summary>
-        {draftFormulas.map((formula, i) => (
-          // eslint-disable-next-line react/no-array-index-key
-          <div key={i} style={{ display: 'flex', gap: 4 }}>
-            <input
-              aria-label={`Edit formula ${i + 1}`}
-              type="text"
-              value={formula}
-              onChange={(e) => setDraftFormulas(
-                draftFormulas.map((f, j) => (j === i ? e.target.value : f)),
-              )}
-              style={{ flex: 1 }}
-            />
-            <button
-              type="button"
-              aria-label={`Remove formula ${i + 1}`}
-              disabled={draftFormulas.length === 1}
-              onClick={() => setDraftFormulas(draftFormulas.filter((_, j) => j !== i))}
-            >
-              ×
-            </button>
-          </div>
-        ))}
-        <button
-          type="button"
-          disabled={draftFormulas.length >= MAX_FORMULAS}
-          onClick={() => setDraftFormulas([...draftFormulas, ''])}
-        >
-          Add formula
-        </button>
+        <textarea
+          aria-label="Formulas, one per line"
+          value={draftText}
+          onChange={(e) => setDraftText(e.target.value)}
+          rows={MAX_FORMULAS}
+          placeholder={'sin(x)\nx^2\ncos(2x)'}
+          spellCheck={false}
+          style={{
+            display: 'block', width: '100%', boxSizing: 'border-box', fontFamily: 'monospace',
+          }}
+        />
+        {/* Always mounted so screen readers announce changes to it. */}
+        <p role="status" style={{ color: '#8a4b00', margin: '4px 0' }}>
+          {parsed.problems.join(' ')}
+        </p>
         <button type="button" onClick={applyFormulas}>Apply formulas</button>
       </details>
 

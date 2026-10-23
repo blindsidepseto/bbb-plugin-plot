@@ -63,14 +63,18 @@ function openPlot() {
   syncMainArea();
 }
 
-function setFormulas(formulas: string[]) {
+function setFormulaText(text: string) {
   const t = view(TEACHER);
-  formulas.forEach((f, i) => {
-    if (i > 0) fireEvent.click(t.getByRole('button', { name: 'Add formula' }));
-    fireEvent.change(t.getByLabelText(`Edit formula ${i + 1}`), { target: { value: f } });
-  });
+  fireEvent.change(t.getByLabelText('Formulas, one per line'), { target: { value: text } });
   act(() => { fireEvent.click(t.getByRole('button', { name: 'Apply formulas' })); });
 }
+
+function setFormulas(formulas: string[]) {
+  setFormulaText(formulas.join('\n'));
+}
+
+const studentFormulaButtons = (user: FakeUser) => within(view(user).getByRole('group', { name: 'Formulas' }))
+  .getAllByRole('button').map((b) => b.textContent);
 
 function typeCurrentFormula(user: FakeUser, value: string) {
   fireEvent.change(view(user).getByLabelText('Current formula'), { target: { value } });
@@ -119,7 +123,7 @@ describe('Given a meeting with a presenter and two students', () => {
     openPlot();
     expect(view(ALICE).queryByRole('button', { name: 'Close Plot' })).toBeNull();
     expect(view(ALICE).queryByRole('button', { name: 'Student mode' })).toBeNull();
-    expect(view(ALICE).queryByLabelText('Edit formula 1')).toBeNull();
+    expect(view(ALICE).queryByLabelText('Formulas, one per line')).toBeNull();
   });
 
   it('Then before the presenter opens Plot, nobody sees it', () => {
@@ -144,10 +148,51 @@ describe('Given a meeting with a presenter and two students', () => {
   });
 
   // Behaviour 4 (UI part)
-  it('When the presenter has 10 formulas, then "Add formula" is disabled', () => {
+  it('When the presenter enters 11 lines, then students get the first 10, and the warning stays visible with all lines kept', () => {
     openPlot();
-    setFormulas(Array.from({ length: 10 }, (_, i) => `x + ${i}`));
-    expect(view(TEACHER).getByRole('button', { name: 'Add formula' })).toBeDisabled();
+    const eleven = Array.from({ length: 11 }, (_, i) => `x + ${i}`).join('\n');
+    setFormulaText(eleven);
+    expect(studentFormulaButtons(ALICE)).toHaveLength(10);
+    expect(studentFormulaButtons(ALICE)[9]).toBe('x + 9');
+    const t = view(TEACHER);
+    expect(t.getByRole('status')).toHaveTextContent(/only the first 10/i);
+    // The editor stays open after Apply, so the warning can be seen.
+    expect(t.getByRole('status').closest('details')).toHaveAttribute('open');
+    // Nothing the teacher typed is deleted.
+    expect(t.getByLabelText('Formulas, one per line')).toHaveValue(eleven);
+  });
+
+  it('When the presenter types more than 10 lines, then the warning appears before Apply and clears when fixed', () => {
+    openPlot();
+    const t = view(TEACHER);
+    const box = t.getByLabelText('Formulas, one per line');
+    fireEvent.change(box, { target: { value: Array.from({ length: 12 }, (_, i) => `x + ${i}`).join('\n') } });
+    expect(t.getByRole('status')).toHaveTextContent(/2 extra lines/i);
+    fireEvent.change(box, { target: { value: Array.from({ length: 10 }, (_, i) => `x + ${i}`).join('\n') } });
+    expect(t.getByRole('status')).toHaveTextContent('');
+  });
+
+  it('When a line is longer than 200 characters, then the presenter is warned and students do not get it', () => {
+    openPlot();
+    setFormulaText(`sin(x)\n${'x+'.repeat(100)}x\ncos(x)`);
+    expect(studentFormulaButtons(ALICE)).toEqual(['sin(x)', 'cos(x)']);
+    expect(view(TEACHER).getByRole('status')).toHaveTextContent(/line 2 .*longer than 200/i);
+  });
+
+  it.each([
+    ['line feeds', 'sin(x)\nx^2\ncos(x)'],
+    ['carriage returns', 'sin(x)\rx^2\rcos(x)'],
+    ['carriage return + line feed', 'sin(x)\r\nx^2\r\ncos(x)'],
+    ['blank lines and spaces', '  sin(x)\n\n x^2 \r\n\r\ncos(x)\n'],
+  ])('When the presenter enters formulas separated by %s, then students get one formula per line', (_label, text) => {
+    openPlot();
+    setFormulaText(text);
+    expect(studentFormulaButtons(ALICE)).toEqual(['sin(x)', 'x^2', 'cos(x)']);
+  });
+
+  it('Then the formula box is a multiline text area', () => {
+    openPlot();
+    expect(view(TEACHER).getByLabelText('Formulas, one per line').tagName).toBe('TEXTAREA');
   });
 
   // Behaviour 5
@@ -184,8 +229,7 @@ describe('Given a meeting with a presenter and two students', () => {
     openPlot();
     setFormulas(['sin(x)', 'x^2']);
     act(() => { server.holdPushes = true; });
-    fireEvent.click(view(TEACHER).getByRole('button', { name: 'Remove formula 1' }));
-    act(() => { fireEvent.click(view(TEACHER).getByRole('button', { name: 'Apply formulas' })); });
+    setFormulaText('x^2');
     // The teacher's buttons already show the new list, and clicking one sends it.
     expect(view(TEACHER).queryByRole('button', { name: 'sin(x)' })).toBeNull();
     fireEvent.click(view(TEACHER).getByRole('button', { name: 'x^2' }));
@@ -291,8 +335,7 @@ describe('Given a meeting with a presenter and two students', () => {
     act(() => { fireEvent.click(view(ALICE).getByRole('button', { name: 'Update plot' })); });
     typeCurrentFormula(ALICE, 'unsent typing');
 
-    fireEvent.change(view(TEACHER).getByLabelText('Edit formula 2'), { target: { value: 'tan(x)' } });
-    act(() => { fireEvent.click(view(TEACHER).getByRole('button', { name: 'Apply formulas' })); });
+    setFormulaText('sin(x)\ntan(x)');
 
     expect(view(ALICE).getByLabelText('Current formula')).toHaveValue('sin(x)');
     expect(view(ALICE).getByRole('button', { name: 'sin(x)' })).toHaveAttribute('aria-pressed', 'true');
