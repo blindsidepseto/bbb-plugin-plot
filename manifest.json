@@ -1,0 +1,18 @@
+{
+  "requiredSdkVersion": "~1.0.0-beta.3",
+  "name": "Plot",
+  "version": "0.1.0",
+  "javascriptEntrypointUrl": "Plot.js",
+  "dataChannels": [
+    {
+      "name": "plot-session",
+      "pushPermission": ["moderator"],
+      "replaceOrDeletePermission": ["moderator"]
+    },
+    {
+      "name": "plot-student-state",
+      "pushPermission": ["all"],
+      "replaceOrDeletePermission": ["creator", "moderator"]
+    }
+  ]
+}

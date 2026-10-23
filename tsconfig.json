@@ -1,0 +1,21 @@
+{
+    "compilerOptions": {
+        "outDir": "./dist-tsc/",
+        "noImplicitAny": true,
+        "strictNullChecks": true,
+        "resolveJsonModule": true,
+        "esModuleInterop": true,
+        "module": "es6",
+        "target": "es5",
+        "jsx": "react",
+        "allowJs": true,
+        "moduleResolution": "node"
+    },
+    "include": ["src/*"],
+    "paths": {
+        "*": ["node_modules"]
+    },
+    "exclude": [
+        "node_modules"
+    ]
+}
